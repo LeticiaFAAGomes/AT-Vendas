@@ -748,3 +748,5 @@ kubectl get services
 **Letícia Gomes**
 
 Projeto desenvolvido para a disciplina de **Microsserviços e DevOps com Spring Boot e Spring Cloud** do bloco de **Desenvolvimento de Softwares Escaláveis**, aplicando conceitos de microsserviços, Spring Cloud, autenticação JWT, Docker, Docker Compose e Kubernetes.
+
+Letícia Gomes - matrícula 12345678912
