@@ -1,6 +1,6 @@
 # 🛒 Sistema de Microsserviços — E-commerce
 
-### Autenticação, Clientes, Produtos e Vendas com Spring Boot, Docker e Kubernetes
+### Autenticação, Clientes, Produtos, Fornecedores e Vendas com Spring Boot, Spring Cloud, Docker e Kubernetes
 
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://www.oracle.com/java/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
@@ -8,9 +8,9 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
 [![Maven](https://img.shields.io/badge/Maven-C71A36?style=for-the-badge&logo=apache-maven&logoColor=white)](https://maven.apache.org/)
 
-Sistema distribuído de **e-commerce**, desenvolvido utilizando uma arquitetura baseada em **microsserviços**, com **Spring Boot**, **Spring Cloud (Eureka, Config Server e Gateway)**, autenticação via **JWT**, **Docker**, **Docker Compose** e **Kubernetes**.
+Sistema distribuído de **e-commerce**, desenvolvido utilizando uma arquitetura baseada em **microsserviços**, com **Spring Boot**, **Spring Cloud (Eureka, Config Server e Gateway)**, autenticação via **JWT**, comunicação entre serviços com **OpenFeign**, **Docker**, **Docker Compose**, **Kubernetes** e **GitHub Actions**.
 
-O projeto aplica conceitos de microsserviços, service discovery, configuração centralizada, roteamento via API Gateway, autenticação e autorização, comunicação entre serviços, conteinerização e orquestração com Kubernetes.
+O projeto aplica conceitos de microsserviços, service discovery, configuração centralizada, roteamento via API Gateway, autenticação e autorização, comunicação entre serviços, conteinerização, orquestração e integração contínua.
 
 ---
 
@@ -19,91 +19,124 @@ O projeto aplica conceitos de microsserviços, service discovery, configuração
 - Desenvolver uma aplicação utilizando arquitetura de microsserviços.
 - Separar as responsabilidades do sistema em serviços independentes.
 - Implementar autenticação e geração de tokens JWT.
+- Implementar refresh token.
 - Centralizar as configurações dos microsserviços com Config Server.
 - Registrar e descobrir serviços com Eureka Server.
 - Rotear as requisições externas através de um API Gateway.
-- Validar o token JWT nas requisições que passam pelo Gateway.
-- Implementar comunicação entre microsserviços (vendas ↔ produtos).
-- Criar imagens Docker para todos os microsserviços.
+- Validar o token JWT nas requisições protegidas.
+- Implementar comunicação entre microsserviços.
+- Utilizar OpenFeign para comunicação entre serviços.
+- Implementar a comunicação entre `vendas-service` e `produtos-service`.
+- Implementar a comunicação entre `fornecedores-service` e `produtos-service`.
+- Criar imagens Docker para os microsserviços.
 - Utilizar Docker Compose para executar os serviços em conjunto.
-- Migrar a aplicação para Kubernetes.
-- Utilizar Deployments e Services no Kubernetes para cada componente.
+- Utilizar Kubernetes para orquestração dos serviços.
+- Automatizar o build do `fornecedores-service` com GitHub Actions.
 
 ---
 
-## 🛒 Sobre o Sistema
+# 🛒 Sobre o Sistema
 
 O sistema é dividido nos seguintes componentes:
 
-- **eureka-server** — servidor de descoberta de serviços (Service Discovery).
-- **config-server** — servidor de configuração centralizada, alimentado pelo `config-repo`.
-- **gateway** — porta de entrada única da aplicação, responsável por rotear as requisições e validar o token JWT.
-- **auth-service** — responsável pelo cadastro de usuários, login e geração/validação de tokens JWT.
-- **clientes-service** — responsável pelo cadastro e gerenciamento de clientes.
-- **produtos-service** — responsável pelo cadastro e gerenciamento de produtos.
-- **vendas-service** — responsável pelo registro de vendas, consultando o `produtos-service` para validar os produtos vendidos.
+- **eureka-server** — servidor de descoberta de serviços.
+- **config-server** — servidor de configuração centralizada.
+- **gateway** — ponto de entrada da aplicação, responsável pelo roteamento e validação do JWT.
+- **auth-service** — cadastro de usuários, login, geração e renovação de tokens JWT.
+- **clientes-service** — cadastro e gerenciamento de clientes.
+- **produtos-service** — cadastro e gerenciamento de produtos.
+- **fornecedores-service** — cadastro e gerenciamento de fornecedores, além da consulta aos produtos.
+- **vendas-service** — registro de vendas e consulta aos produtos.
 
-Todas as requisições externas passam pelo **Gateway**, que consulta o **Eureka** para localizar as instâncias dos serviços e valida o token JWT antes de encaminhar a requisição ao microsserviço de destino.
+Todos os microsserviços são registrados no **Eureka**, permitindo que sejam localizados pelo nome do serviço.
 
 ---
 
-## 🏛️ Arquitetura
+## 🔌 Portas
+
+| Serviço                |  Porta |
+| ---------------------- | -----: |
+| `eureka-server`        | `8761` |
+| `config-server`        | `8888` |
+| `produtos-service`     | `8081` |
+| `vendas-service`       | `8082` |
+| `clientes-service`     | `8083` |
+| `fornecedores-service` | `8084` |
+| `gateway`              | `8085` |
+| `auth-service`         | `8086` |
+
+---
+
+# 🏛️ Arquitetura
 
 ```text
-                                   ┌─────────────────────────┐
-                                   │         CLIENTE         │
-                                   │       REST / HTTP       │
-                                   └────────────┬────────────┘
-                                                │
-                                                ▼
-                                     ┌──────────────────────┐
-                                     │       GATEWAY        │
-                                     │   (TokenFilter/JWT)  │
-                                     └──────────┬───────────┘
-                                                │
-                    ┌───────────────┬───────────┼───────────────┬───────────────┐
-                    ▼               ▼           ▼               ▼               ▼
-           ┌────────────────┐┌────────────┐┌────────────┐┌────────────┐┌────────────────┐
-           │  auth-service  ││ clientes-  ││ produtos-  ││ vendas-    ││  eureka-server │
-           │                ││ service    ││ service    ││ service    ││ config-server  │
-           └───────┬────────┘└─────┬──────┘└─────┬──────┘└─────┬──────┘└────────────────┘
-                   │               │             │             │
-                   ▼               ▼             ▼             ▼
-              ┌─────────┐    ┌──────────┐   ┌──────────┐   ┌─────────┐
-              │   DB    │    │   DB     │   │    DB    │   │   DB    │
-              │  Auth   │    │ Clientes │   │ Produtos │   │ Vendas  │
-              └─────────┘    └──────────┘   └──────────┘   └─────────┘
+                              ┌─────────────────────┐
+                              │       CLIENTE       │
+                              │      REST / HTTP    │
+                              └──────────┬──────────┘
+                                         │
+                                         ▼
+                              ┌─────────────────────┐
+                              │       GATEWAY       │
+                              │   JWT + Discovery   │
+                              │      :8085          │
+                              └──────────┬──────────┘
+                                         │
+             ┌───────────────┬───────────┼───────────┬───────────────┐
+             ▼               ▼           ▼           ▼               ▼
+      ┌─────────────┐ ┌────────────┐ ┌──────────┐ ┌──────────────┐
+      │    AUTH     │ │  CLIENTES  │ │ PRODUTOS │ │  FORNECEDORES │
+      │   :8086     │ │   :8083    │ │  :8081   │ │    :8084     │
+      └─────────────┘ └────────────┘ └────┬─────┘ └──────┬───────┘
+                                          │              │
+                                          │   OpenFeign  │
+                                          │◄─────────────┘
+                                          │
+                                          ▼
+                                  ┌──────────────┐
+                                  │    VENDAS    │
+                                  │    :8082     │
+                                  └──────────────┘
+
+                    ┌──────────────────────────────┐
+                    │       EUREKA SERVER          │
+                    │            :8761             │
+                    └──────────────────────────────┘
+
+                    ┌──────────────────────────────┐
+                    │        CONFIG SERVER         │
+                    │            :8888             │
+                    └──────────────────────────────┘
 ```
 
-O `vendas-service` consulta o `produtos-service` (via `ProdutoInterface`) para validar os produtos antes de registrar uma venda. Todos os serviços se registram no **Eureka** e buscam suas configurações no **Config Server**.
+O **Gateway** utiliza o Eureka para descobrir os microsserviços registrados. As comunicações internas entre serviços também utilizam o mecanismo de descoberta.
 
 ---
 
-## 🧩 Componentes da Aplicação
+# 🧩 Componentes da Aplicação
 
-| Componente           | Responsabilidade                                             |
-| -------------------- | ------------------------------------------------------------ |
-| **eureka-server**    | Registro e descoberta de serviços (Service Discovery)        |
-| **config-server**    | Configuração centralizada dos microsserviços                 |
-| **gateway**          | Roteamento das requisições e validação do token JWT          |
-| **auth-service**     | Cadastro de usuários, login e geração/validação de token JWT |
-| **clientes-service** | Gerenciamento de clientes                                    |
-| **produtos-service** | Gerenciamento de produtos                                    |
-| **vendas-service**   | Registro de vendas, com validação de produtos                |
+| Componente               | Responsabilidade                                     |
+| ------------------------ | ---------------------------------------------------- |
+| **eureka-server**        | Registro e descoberta de serviços                    |
+| **config-server**        | Configuração centralizada                            |
+| **gateway**              | Roteamento e validação do JWT                        |
+| **auth-service**         | Cadastro, login e autenticação                       |
+| **clientes-service**     | Gerenciamento de clientes                            |
+| **produtos-service**     | Gerenciamento de produtos                            |
+| **fornecedores-service** | Gerenciamento de fornecedores e consulta de produtos |
+| **vendas-service**       | Registro de vendas e consulta de produtos            |
 
 ---
 
 # 🔐 Autenticação
 
-A autenticação do sistema utiliza **JWT (JSON Web Token)**.
+A autenticação utiliza **JWT (JSON Web Token)**.
 
 O responsável pela autenticação é o:
 
 ```text
 auth-service
 ```
-
-O serviço possui responsabilidade independente dos demais microsserviços.
 
 ### Fluxo de autenticação
 
@@ -127,7 +160,7 @@ Gateway
 Microsserviço protegido
 ```
 
-As requisições que não possuem uma credencial válida são rejeitadas pelo Gateway com:
+As requisições sem uma credencial válida são rejeitadas pelo Gateway com:
 
 ```text
 401 Unauthorized
@@ -143,69 +176,51 @@ O `auth-service` é responsável pela autenticação dos usuários.
 
 - Cadastrar usuários.
 - Autenticar usuários.
-- Validar e-mail e senha.
+- Validar credenciais.
 - Criptografar senhas utilizando BCrypt.
 - Gerar tokens JWT.
-- Disponibilizar o endpoint de login.
-- Disponibilizar o endpoint de refresh.
+- Renovar tokens através de refresh.
 - Persistir os usuários em seu próprio banco de dados.
 
-### Estrutura
+### Endpoints públicos
 
-```text
-auth-service/
-
-└── src/main
-    ├── java/com/exemplo/authservice
-    │   ├── config
-    │   │   └── SenhaConfig.java
-    │   ├── controller
-    │   │   └── UsuarioController.java
-    │   ├── dto
-    │   │   ├── LoginRequest.java
-    │   │   ├── LoginResponse.java
-    │   │   └── UsuarioRequest.java
-    │   ├── model
-    │   │   └── Usuario.java
-    │   ├── repository
-    │   │   └── UsuarioRepository.java
-    │   ├── service
-    │   │   ├── JwtToken.java
-    │   │   └── UsuarioService.java
-    │   └── AuthServiceApplication.java
-    └── resources
-        └── application.properties
-```
+| Método | Endpoint            | Descrição                 |
+| ------ | ------------------- | ------------------------- |
+| POST   | `/usuarios`         | Cadastro de usuário       |
+| POST   | `/usuarios/login`   | Login e obtenção do token |
+| POST   | `/usuarios/refresh` | Renovação do token        |
 
 ---
 
 # 🔓 Endpoints Públicos
 
-As seguintes rotas não exigem token JWT:
+As seguintes rotas não exigem autenticação:
 
-| Método | Endpoint            | Descrição                        |
-| ------ | ------------------- | -------------------------------- |
-| POST   | `/usuarios`         | Cadastro de usuário              |
-| POST   | `/usuarios/login`   | Autenticação e obtenção do token |
-| POST   | `/usuarios/refresh` | Renovação do token               |
+```text
+POST /usuarios
+POST /usuarios/login
+POST /usuarios/refresh
+```
 
-No Gateway, essas rotas devem ser liberadas para permitir que o usuário se cadastre, realize login e renove sua credencial.
+Essas rotas são liberadas pelo Gateway para permitir o cadastro, login e renovação da credencial.
 
 ---
 
 # 🔒 Endpoints Protegidos
 
-As rotas dos demais microsserviços exigem autenticação válida.
+Os demais endpoints exigem um JWT válido.
 
-| Método | Endpoint         | Descrição            |
-| ------ | ---------------- | -------------------- |
-| GET    | `/clientes`      | Lista clientes       |
-| GET    | `/produtos`      | Lista produtos       |
-| GET    | `/produtos/{id}` | Busca produto por ID |
-| GET    | `/vendas`        | Consulta vendas      |
-| POST   | `/vendas`        | Registra uma venda   |
+| Método | Endpoint                 | Descrição                               |
+| ------ | ------------------------ | --------------------------------------- |
+| GET    | `/clientes`              | Lista clientes                          |
+| GET    | `/produtos`              | Lista produtos                          |
+| GET    | `/produtos/{id}`         | Busca produto por ID                    |
+| GET    | `/fornecedores`          | Lista fornecedores                      |
+| GET    | `/fornecedores/produtos` | Consulta produtos através do fornecedor |
+| GET    | `/vendas`                | Consulta vendas                         |
+| POST   | `/vendas`                | Registra uma venda                      |
 
-O token deve ser enviado no cabeçalho HTTP:
+O token deve ser enviado no cabeçalho:
 
 ```http
 Authorization: Bearer <token>
@@ -215,15 +230,15 @@ Authorization: Bearer <token>
 
 # 🔄 Refresh Token
 
-O sistema deve disponibilizar uma rota para renovação da credencial:
+O sistema disponibiliza:
 
 ```http
 POST /usuarios/refresh
 ```
 
-O objetivo do endpoint é permitir que o usuário obtenha uma nova credencial de acesso utilizando o mecanismo de refresh definido pela aplicação.
+O endpoint permite renovar a credencial de acesso utilizando o mecanismo de refresh implementado pelo `auth-service`.
 
-Fluxo esperado:
+Fluxo:
 
 ```text
 Access Token
@@ -246,13 +261,11 @@ O filtro:
 
 1. Identifica a rota acessada.
 2. Verifica se a rota é pública.
-3. Caso seja protegida, procura o cabeçalho `Authorization`.
-4. Verifica se o formato utiliza `Bearer`.
-5. Valida a assinatura do JWT.
+3. Procura o cabeçalho `Authorization`.
+4. Verifica o formato `Bearer`.
+5. Valida o JWT.
 6. Libera a requisição quando o token é válido.
 7. Retorna `401 Unauthorized` quando o token é ausente ou inválido.
-
-### Fluxo
 
 ```text
 Requisição
@@ -282,15 +295,15 @@ Gateway
 
 # 👥 clientes-service
 
-O `clientes-service` é responsável pelo gerenciamento dos **clientes**.
+O `clientes-service` é responsável pelo gerenciamento dos clientes.
 
 ### Responsabilidades
 
 - Listar clientes.
-- Persistir os dados em seu próprio banco de dados.
+- Persistir os dados em seu próprio banco.
 - Popular dados iniciais através do `DataInitializer`.
 
-### Endpoints
+### Endpoint
 
 | Método | Endpoint    | Descrição               |
 | ------ | ----------- | ----------------------- |
@@ -300,60 +313,118 @@ O `clientes-service` é responsável pelo gerenciamento dos **clientes**.
 
 # 📦 produtos-service
 
-O `produtos-service` é responsável pelo gerenciamento dos **produtos**.
+O `produtos-service` é responsável pelo gerenciamento dos produtos.
 
 ### Responsabilidades
 
 - Listar produtos.
 - Buscar produto por ID.
-- Persistir os dados em seu próprio banco de dados.
-- Popular dados iniciais através do `DataInitializer`.
-- Responder às consultas feitas pelo `vendas-service`.
+- Persistir os dados em seu próprio banco.
+- Popular dados iniciais.
+- Responder às consultas feitas por outros microsserviços.
 
 ### Endpoints
 
 | Método | Endpoint         | Descrição               |
 | ------ | ---------------- | ----------------------- |
 | GET    | `/produtos`      | Lista todos os produtos |
-| GET    | `/produtos/{id}` | Busca um produto por ID |
+| GET    | `/produtos/{id}` | Busca produto por ID    |
+
+---
+
+# 🏭 fornecedores-service
+
+O `fornecedores-service` é responsável pelo gerenciamento dos fornecedores.
+
+### Responsabilidades
+
+- Listar fornecedores.
+- Persistir os fornecedores.
+- Disponibilizar informações de fornecedores.
+- Consultar produtos através do `produtos-service`.
+- Utilizar **OpenFeign** para comunicação entre microsserviços.
+- Registrar-se no Eureka.
+
+### Endpoints
+
+| Método | Endpoint                 | Descrição                                    |
+| ------ | ------------------------ | -------------------------------------------- |
+| GET    | `/fornecedores`          | Lista todos os fornecedores                  |
+| GET    | `/fornecedores/produtos` | Lista produtos através do `produtos-service` |
+
+### Comunicação com produtos-service
+
+O `fornecedores-service` utiliza um cliente Feign:
+
+```text
+FORNECEDORES-SERVICE
+        │
+        │ OpenFeign
+        │ GET /produtos
+        ▼
+PRODUTOS-SERVICE
+        │
+        ▼
+ Lista de produtos
+```
+
+O serviço é localizado através do nome registrado no Eureka, evitando a necessidade de configurar diretamente o endereço do `produtos-service`.
 
 ---
 
 # 💰 vendas-service
 
-O `vendas-service` é responsável pelo registro das **vendas**, consultando o `produtos-service` para validar os produtos informados.
+O `vendas-service` é responsável pelo registro das vendas.
 
 ### Responsabilidades
 
-- Registrar uma venda a partir do ID do produto e da quantidade.
-- Consultar o `produtos-service` através do `ProdutoInterface` para validar o produto e obter seu valor.
-- Persistir os dados das vendas em seu próprio banco de dados.
+- Registrar vendas.
+- Consultar produtos.
+- Validar o produto informado.
+- Obter os dados necessários do produto.
+- Persistir as vendas em seu próprio banco.
 
 ### Endpoints
 
-| Método | Endpoint  | Descrição                                              |
-| ------ | --------- | ------------------------------------------------------ |
-| GET    | `/vendas` | Endpoint de verificação (retorna uma mensagem fixa)    |
-| POST   | `/vendas` | Registra uma nova venda, validando o produto informado |
+| Método | Endpoint  | Descrição               |
+| ------ | --------- | ----------------------- |
+| GET    | `/vendas` | Endpoint de consulta    |
+| POST   | `/vendas` | Registra uma nova venda |
 
 ---
 
 # 🔄 Comunicação entre Microsserviços
 
-O `vendas-service` precisa consultar o `produtos-service` para verificar se o produto informado existe e obter seus dados.
+O projeto utiliza comunicação entre microsserviços através do **Service Discovery** e **OpenFeign**.
 
-Essa comunicação é realizada pelo `ProdutoInterface`, utilizando o nome do serviço registrado no Eureka:
+### Vendas → Produtos
 
 ```text
 VENDAS-SERVICE
-       │
-       │ GET /produtos/{id}
-       ▼
+      │
+      │ GET /produtos/{id}
+      ▼
 PRODUTOS-SERVICE
-       │
-       ▼
-    Resposta
+      │
+      ▼
+   Produto
 ```
+
+### Fornecedores → Produtos
+
+```text
+FORNECEDORES-SERVICE
+        │
+        │ OpenFeign
+        │ GET /produtos
+        ▼
+PRODUTOS-SERVICE
+        │
+        ▼
+   Produtos
+```
+
+O Eureka permite localizar os serviços pelo nome registrado, evitando dependência de endereços IP fixos.
 
 ---
 
@@ -361,17 +432,38 @@ PRODUTOS-SERVICE
 
 O `eureka-server` é o servidor de **Service Discovery** da aplicação.
 
-Todos os microsserviços (`auth-service`, `clientes-service`, `produtos-service`, `vendas-service`, `gateway`, `config-server`) se registram no Eureka ao subir, permitindo que sejam localizados uns pelos outros apenas pelo nome.
+Os microsserviços se registram no Eureka ao iniciar, permitindo que outros componentes localizem os serviços pelo nome.
+
+Entre os serviços registrados estão:
 
 ```text
-kubectl get pods -l app=eureka-server
+AUTH-SERVICE
+CLIENTES-SERVICE
+FORNECEDORES-SERVICE
+GATEWAY
+PRODUTOS-SERVICE
+VENDAS-SERVICE
+```
+
+O Eureka está disponível na porta:
+
+```text
+8761
 ```
 
 ---
 
 # ⚙️ config-server
 
-O `config-server` centraliza as configurações de todos os microsserviços, servindo os arquivos de propriedades armazenados no `config-repo`:
+O `config-server` centraliza as configurações dos microsserviços.
+
+As configurações são armazenadas no diretório:
+
+```text
+config-repo/
+```
+
+Atualmente estão presentes configurações para os serviços:
 
 ```text
 config-repo/
@@ -379,43 +471,60 @@ config-repo/
 ├── auth-service-docker.properties
 ├── clientes-service.properties
 ├── clientes-service-docker.properties
+├── fornecedores-service.properties
+├── fornecedores-service-docker.properties
 ├── produtos-service.properties
 ├── produtos-service-docker.properties
 ├── vendas-service.properties
 └── vendas-service-docker.properties
 ```
 
-Cada microsserviço possui um arquivo de configuração padrão e uma variação `-docker`, utilizada quando os serviços são executados em containers (ambiente onde os hosts dos bancos de dados e demais serviços mudam).
+As configurações com sufixo `-docker` são utilizadas no ambiente de containers, onde os serviços são acessados através dos nomes definidos no Docker Compose.
 
 ---
 
 # 🚪 gateway
 
-O `gateway` é o **ponto único de entrada** da aplicação, responsável por:
+O `gateway` é o ponto único de entrada da aplicação.
 
-- Rotear as requisições para o microsserviço correto, utilizando o Eureka.
-- Validar o token JWT das requisições através do `TokenFilter`, liberando o acesso apenas às rotas autorizadas (como login e cadastro de usuário).
+Ele possui duas responsabilidades principais:
+
+- Descobrir e rotear requisições para os microsserviços através do Eureka.
+- Validar o token JWT através do `TokenFilter`.
+
+O Gateway utiliza o **Discovery Locator**, permitindo localizar os serviços registrados no Eureka.
+
+Exemplo de acesso ao `fornecedores-service`:
 
 ```text
-CLIENTE
-   │
-   ▼
-GATEWAY (TokenFilter)
-   │
-   ├── válido    → encaminha para o microsserviço de destino
-   └── inválido  → retorna 401 Unauthorized
+GET http://localhost:8085/fornecedores-service/fornecedores
+```
+
+Com autenticação:
+
+```http
+Authorization: Bearer <token>
+```
+
+Resposta esperada:
+
+```text
+HTTP/1.1 200 OK
 ```
 
 ---
 
 # 🐳 Docker
 
-Cada componente da aplicação (`auth-service`, `clientes-service`, `produtos-service`, `vendas-service`, `gateway`, `eureka-server`, `config-server`) possui seu próprio `Dockerfile`.
+Os microsserviços possuem seus próprios `Dockerfile` para criação das imagens.
 
-### Exemplo — auth-service
+Os containers utilizam Java 17 no ambiente Docker.
+
+Exemplo de estrutura:
 
 ```dockerfile
 FROM maven:3.9-eclipse-temurin-17 AS build
+
 WORKDIR /app
 
 COPY pom.xml .
@@ -427,6 +536,7 @@ COPY src ./src
 RUN mvn package -DskipTests -B
 
 FROM eclipse-temurin:17-jre
+
 WORKDIR /app
 
 COPY --from=build /app/target/*.jar app.jar
@@ -436,13 +546,15 @@ EXPOSE 8084
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
 
-Os demais serviços seguem a mesma estrutura, alterando apenas a porta exposta.
+A porta exposta deve corresponder à porta utilizada pelo respectivo microsserviço.
 
 ---
 
 # 🐳 Docker Compose
 
-O projeto possui um arquivo `docker-compose.yml` na raiz, responsável por orquestrar todos os componentes:
+O projeto possui um `docker-compose.yml` responsável por executar os componentes em containers.
+
+Entre os serviços estão:
 
 ```text
 eureka-server
@@ -451,14 +563,20 @@ gateway
 auth-service
 clientes-service
 produtos-service
+fornecedores-service
 vendas-service
-+ bancos de dados de cada serviço
 ```
 
 ### Executar
 
 ```bash
-docker compose up -d
+docker compose up --build
+```
+
+Ou em segundo plano:
+
+```bash
+docker compose up --build -d
 ```
 
 ### Verificar os containers
@@ -467,15 +585,23 @@ docker compose up -d
 docker compose ps
 ```
 
-O Docker Compose garante que o `eureka-server` e o `config-server` subam antes dos demais microsserviços, já que todos dependem deles para se registrar e obter suas configurações.
+O `fornecedores-service` utiliza a porta:
+
+```text
+8084:8084
+```
 
 ---
 
 # ☸️ Kubernetes
 
-Após a validação com Docker e Docker Compose, a aplicação foi migrada para o Kubernetes.
+Após a validação com Docker e Docker Compose, a aplicação pode ser executada em Kubernetes através dos manifestos presentes em:
 
-Os manifestos estão organizados na pasta `k8s/`, aplicados em ordem, garantindo que a infraestrutura de suporte suba primeiro:
+```text
+k8s/
+```
+
+Estrutura:
 
 ```text
 k8s/
@@ -506,12 +632,47 @@ kubectl apply -f k8s/07-auth-service.yaml
 ### Verificar os recursos
 
 ```bash
-kubectl get pods -n <namespace>
-kubectl get deployments -n <namespace>
-kubectl get services -n <namespace>
+kubectl get pods
+kubectl get deployments
+kubectl get services
 ```
 
-Cada microsserviço foi configurado com um **Deployment** e um **Service**, permitindo réplicas e acesso interno estável dentro do cluster.
+---
+
+# 🤖 GitHub Actions
+
+O projeto possui um workflow de **Continuous Integration** em:
+
+```text
+.github/
+└── workflows/
+    └── ci.yml
+```
+
+O workflow é executado automaticamente a cada `push`.
+
+### Etapas do pipeline
+
+```text
+Push
+ │
+ ▼
+GitHub Actions
+ │
+ ├── Checkout do repositório
+ │
+ ├── Configuração do Java 17
+ │
+ └── Build do fornecedores-service com Maven
+```
+
+O build é executado através de:
+
+```bash
+mvn -f fornecedores-service/pom.xml clean package -DskipTests
+```
+
+O resultado do pipeline pode ser acompanhado pela aba **Actions** do repositório.
 
 ---
 
@@ -519,36 +680,18 @@ Cada microsserviço foi configurado com um **Deployment** e um **Service**, perm
 
 ```text
 .
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
 ├── auth-service/
-│   ├── src/main
-│   │   ├── java/com/exemplo/authservice
-│   │   │   ├── config/SenhaConfig.java
-│   │   │   ├── controller/UsuarioController.java
-│   │   │   ├── dto/
-│   │   │   │   ├── LoginRequest.java
-│   │   │   │   ├── LoginResponse.java
-│   │   │   │   └── UsuarioRequest.java
-│   │   │   ├── model/Usuario.java
-│   │   │   ├── repository/UsuarioRepository.java
-│   │   │   ├── service/
-│   │   │   │   ├── JwtToken.java
-│   │   │   │   └── UsuarioService.java
-│   │   │   └── AuthServiceApplication.java
-│   │   └── resources/application.properties
+│   ├── src/
 │   ├── .dockerignore
 │   ├── Dockerfile
 │   └── pom.xml
 │
 ├── clientes-service/
-│   ├── src/main
-│   │   ├── java/com/exemplo/clientesservice
-│   │   │   ├── config/DataInitializer.java
-│   │   │   ├── controller/ClienteController.java
-│   │   │   ├── model/Cliente.java
-│   │   │   ├── repository/ClienteRepository.java
-│   │   │   ├── service/ClienteService.java
-│   │   │   └── ClienteServiceApplication.java
-│   │   └── resources/application.properties
+│   ├── src/
 │   ├── .dockerignore
 │   ├── Dockerfile
 │   └── pom.xml
@@ -558,36 +701,37 @@ Cada microsserviço foi configurado com um **Deployment** e um **Service**, perm
 │   ├── auth-service-docker.properties
 │   ├── clientes-service.properties
 │   ├── clientes-service-docker.properties
+│   ├── fornecedores-service.properties
+│   ├── fornecedores-service-docker.properties
 │   ├── produtos-service.properties
 │   ├── produtos-service-docker.properties
 │   ├── vendas-service.properties
 │   └── vendas-service-docker.properties
 │
 ├── config-server/
-│   ├── src/main
-│   │   ├── java/com/exemplo/configserver/ConfigServerApplication.java
-│   │   └── resources/application.properties
+│   ├── src/
 │   ├── .dockerignore
 │   ├── Dockerfile
 │   └── pom.xml
 │
 ├── eureka-server/
-│   ├── src/main
-│   │   ├── java/com/exemplo/eurekaserver/EurekaServerApplication.java
-│   │   └── resources/application.properties
+│   ├── src/
+│   ├── .dockerignore
+│   ├── Dockerfile
+│   └── pom.xml
+│
+├── fornecedores-service/
+│   ├── src/
+│   │   └── main/
+│   │       ├── java/
+│   │       │   └── ...
+│   │       └── resources/
 │   ├── .dockerignore
 │   ├── Dockerfile
 │   └── pom.xml
 │
 ├── gateway/
-│   ├── .mvn/wrapper
-│   ├── src
-│   │   ├── main
-│   │   │   ├── java/com/example/gateway
-│   │   │   │   ├── filter/TokenFilter.java
-│   │   │   │   └── GatewayApplication.java
-│   │   │   └── resources/application.properties
-│   │   └── test/java/com/example/gateway
+│   ├── src/
 │   ├── .dockerignore
 │   ├── Dockerfile
 │   └── pom.xml
@@ -604,35 +748,13 @@ Cada microsserviço foi configurado com um **Deployment** e um **Service**, perm
 │   └── README.md
 │
 ├── produtos-service/
-│   ├── src/main
-│   │   ├── java/com/exemplo/produtosservice
-│   │   │   ├── config/DataInitializer.java
-│   │   │   ├── controller/ProdutoController.java
-│   │   │   ├── model/Produto.java
-│   │   │   ├── repository/ProdutoRepository.java
-│   │   │   ├── service/
-│   │   │   └── ProdutosServiceApplication.java
-│   │   └── resources/
+│   ├── src/
 │   ├── .dockerignore
 │   ├── Dockerfile
 │   └── pom.xml
 │
 ├── vendas-service/
-│   ├── .mvn/wrapper
-│   ├── src
-│   │   ├── main
-│   │   │   ├── java/com/example/vendas_service
-│   │   │   │   ├── controllers/VendaController.java
-│   │   │   │   ├── dto/
-│   │   │   │   │   ├── ProdutoDTO.java
-│   │   │   │   │   └── VendaDTO.java
-│   │   │   │   ├── interfaces/ProdutoInterface.java
-│   │   │   │   ├── models/Venda.java
-│   │   │   │   ├── repository/VendasRepository.java
-│   │   │   │   ├── services/VendaService.java
-│   │   │   │   └── VendasServiceApplication.java
-│   │   │   └── resources/application.properties
-│   │   └── test/java/com/example/vendas_service
+│   ├── src/
 │   ├── .dockerignore
 │   ├── Dockerfile
 │   └── pom.xml
@@ -650,6 +772,7 @@ Cada microsserviço foi configurado com um **Deployment** e um **Service**, perm
 - **Spring Cloud Netflix Eureka**
 - **Spring Cloud Config**
 - **Spring Cloud Gateway**
+- **Spring Cloud OpenFeign**
 - **Spring Data JPA**
 - **Spring Security / JWT**
 - **PostgreSQL**
@@ -657,6 +780,7 @@ Cada microsserviço foi configurado com um **Deployment** e um **Service**, perm
 - **Docker**
 - **Docker Compose**
 - **Kubernetes**
+- **GitHub Actions**
 
 ---
 
@@ -664,7 +788,7 @@ Cada microsserviço foi configurado com um **Deployment** e um **Service**, perm
 
 ## 1. Gerar os projetos
 
-Em cada microsserviço, execute:
+Em cada microsserviço:
 
 ```bash
 mvn clean package
@@ -681,6 +805,7 @@ docker build -t gateway ./gateway
 docker build -t auth-service ./auth-service
 docker build -t clientes-service ./clientes-service
 docker build -t produtos-service ./produtos-service
+docker build -t fornecedores-service ./fornecedores-service
 docker build -t vendas-service ./vendas-service
 ```
 
@@ -691,10 +816,10 @@ docker build -t vendas-service ./vendas-service
 Na raiz do projeto:
 
 ```bash
-docker compose up -d
+docker compose up --build -d
 ```
 
-Verifique:
+Verifique os serviços:
 
 ```bash
 docker compose ps
@@ -702,9 +827,31 @@ docker compose ps
 
 ---
 
-## 4. Executar no Kubernetes
+## 4. Testar o Gateway
 
-Com o cluster ativo, aplique os manifestos na ordem:
+Após obter um JWT através do `auth-service`, as rotas protegidas podem ser acessadas utilizando:
+
+```http
+Authorization: Bearer <token>
+```
+
+Exemplo:
+
+```bash
+curl.exe -i "http://localhost:8085/fornecedores-service/fornecedores" -H "Authorization: Bearer <token>"
+```
+
+Resposta esperada:
+
+```text
+HTTP/1.1 200 OK
+```
+
+---
+
+## 5. Executar no Kubernetes
+
+Com o cluster ativo:
 
 ```bash
 kubectl apply -f k8s/00-namespace.yaml
@@ -717,7 +864,7 @@ kubectl apply -f k8s/06-clientes-service.yaml
 kubectl apply -f k8s/07-auth-service.yaml
 ```
 
-Verifique os Pods, Deployments e Services:
+Verifique:
 
 ```bash
 kubectl get pods
@@ -729,16 +876,23 @@ kubectl get services
 
 # 📚 Conceitos Aplicados
 
-- Arquitetura de microsserviços;
-- Service Discovery com Eureka;
-- Configuração centralizada com Config Server;
-- API Gateway e roteamento de requisições;
-- Autenticação e autorização com JWT;
-- APIs REST;
-- Comunicação entre microsserviços;
-- Docker, Dockerfile, Docker Image e Docker Container;
-- Docker Compose;
-- Kubernetes, Pods, Deployments e Services;
+- Arquitetura de microsserviços.
+- Service Discovery com Eureka.
+- Configuração centralizada com Config Server.
+- API Gateway.
+- Roteamento baseado em descoberta de serviços.
+- Autenticação e autorização com JWT.
+- Refresh Token.
+- APIs REST.
+- Comunicação síncrona entre microsserviços.
+- OpenFeign.
+- Dockerfile.
+- Docker Image.
+- Docker Container.
+- Docker Compose.
+- Kubernetes.
+- Pods, Deployments e Services.
+- Continuous Integration com GitHub Actions.
 - Separação de responsabilidades entre serviços.
 
 ---
@@ -747,4 +901,4 @@ kubectl get services
 
 **Letícia Gomes**
 
-Projeto desenvolvido para a disciplina de **Microsserviços e DevOps com Spring Boot e Spring Cloud** do bloco de **Desenvolvimento de Softwares Escaláveis**, aplicando conceitos de microsserviços, Spring Cloud, autenticação JWT, Docker, Docker Compose e Kubernetes.
+Projeto desenvolvido para a disciplina de **Microsserviços e DevOps com Spring Boot e Spring Cloud**, do bloco de **Desenvolvimento de Softwares Escaláveis**, aplicando conceitos de arquitetura de microsserviços, Spring Cloud, autenticação JWT, comunicação com OpenFeign, Docker, Docker Compose, Kubernetes e GitHub Actions.
